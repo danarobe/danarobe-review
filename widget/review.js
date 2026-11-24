@@ -268,10 +268,11 @@
     var ov = el("div", "dr-viewer");
     ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", "리뷰 크게 보기");
     document.body.appendChild(ov);
-    var prevOverflow = document.documentElement.style.overflow;
-    document.documentElement.style.overflow = "hidden";
+    var H = document.documentElement, prevOverflow = H.style.overflow, prevGutter = H.style.scrollbarGutter;
+    // 스크롤 막을 때 스크롤바 자리를 남겨 화면이 옆으로 밀리지 않게
+    H.style.scrollbarGutter = "stable"; H.style.overflow = "hidden";
     function close() {
-      ov.remove(); document.documentElement.style.overflow = prevOverflow;
+      ov.remove(); H.style.overflow = prevOverflow; H.style.scrollbarGutter = prevGutter;
       document.removeEventListener("keydown", key);
     }
     function key(e) {
