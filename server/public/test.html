@@ -21,7 +21,7 @@
   <span>예: <a href="?product_no=1383">1383</a> · <a href="?product_no=703">703</a> · <a href="?product_no=2487">2487</a> · <a href="?product_no=29">29</a> · <a href="?product_no=3">리뷰 없음</a></span>
 </form>
 <div class="tabs">상세정보 · 구매안내 · 사용후기 <b class="dr-review-count">…</b> · Q&amp;A</div>
-<div id="dnrb-review"></div>
+<div style="padding:0 16px"><div id="dnrb-review"></div></div>
 <script>
   var p = new URLSearchParams(location.search).get("product_no") || "1383";
   document.getElementById("dnrb-review").setAttribute("data-product-no", p);

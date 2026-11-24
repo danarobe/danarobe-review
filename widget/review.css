@@ -165,7 +165,7 @@
 
 /* 휴대폰 */
 @media (max-width: 767px) {
-  .dr-review { padding: 0 16px 32px; font-size: 13px; }
+  .dr-review { padding: 0 0 32px; font-size: 13px; }
   .dr-write { padding: 24px 0; }
   .dr-reward { font-size: 14px; }
   .dr-summary { gap: 20px; padding: 18px 16px; margin-bottom: 28px; }
@@ -173,14 +173,15 @@
   .dr-avg strong { font-size: 30px; }
   .dr-stars-lg i { width: 15px; height: 15px; }
   .dr-dist button { grid-template-columns: 28px 1fr 40px; gap: 6px; font-size: 12px; }
-  .dr-gal { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 10px; margin: 0 -16px; padding: 0 16px 4px; scrollbar-width: none; }
+  .dr-gal { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 10px; padding: 0 0 4px; scrollbar-width: none; }
   .dr-gal::-webkit-scrollbar { display: none; }
   .dr-gal > li { flex: 0 0 42%; scroll-snap-align: start; }
   .dr-card-text { font-size: 13px; }
   .dr-toolbar { flex-wrap: wrap; gap: 10px; }
   .dr-media-toggle { width: 100%; }
-  .dr-sorts { gap: 12px; padding-right: 10px; font-size: 13px; }
-  .dr-search { flex: 1; } .dr-search input { width: 100%; }
+  .dr-sorts { gap: 12px; padding-right: 0; border-right: 0; font-size: 13px; flex-wrap: wrap; }
+  .dr-search { width: 100%; border: 1px solid #ddd; border-radius: 3px; padding: 2px 10px; }
+  .dr-search input { flex: 1; width: auto; }
   .dr-item { grid-template-columns: 1fr; gap: 10px; padding: 22px 0; }
   .dr-who { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
   .dr-body { border-left: 0; padding-left: 0; }
