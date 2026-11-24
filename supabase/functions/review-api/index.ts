@@ -167,9 +167,19 @@ async function alreadyReviewed(codes: string[]) {
 }
 
 // ── 반복 대입 막기: 비회원 확인 실패를 IP별·주문번호별로 세어 1시간 안에 너무 많으면 잠시 막는다 ──
-const FAIL_LIMIT_IP = 10, FAIL_LIMIT_ORDER = 5;
+// 맞히기 시도 한도: 같은 접속 10번, 같은 접속+같은 주문 5번, 같은 주문 전체 20번 (1시간)
+//  - 주문별 전체 한도가 있어 접속 위치를 바꿔도 한 주문에 시간당 20번 이상 못 넣음(휴대폰 번호 맞히기 불가능한 수준)
+//  - 진짜 주문자는 남이 일부러 틀려도 '접속+주문' 5번 잠금에 걸리지 않고, 전체 20번에 닿을 때만 1시간 막힘
+const FAIL_LIMIT_IP = 10, FAIL_LIMIT_IP_ORDER = 5, FAIL_LIMIT_ORDER = 20;
+function clientIp(req: Request) {
+  // 브라우저가 마음대로 넣을 수 있는 x-forwarded-for 첫 값 대신, 앞단(Cloudflare·Supabase)이 붙인 값을 쓴다
+  const cf = req.headers.get("cf-connecting-ip");
+  if (cf) return cf.trim();
+  const xff = (req.headers.get("x-forwarded-for") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  return xff.length ? xff[xff.length - 1] : "unknown";
+}
 async function ipKey(req: Request) {
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+  const ip = clientIp(req);
   const h = new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode("dr-ip:" + ip + SB_KEY.slice(-8))));
   return "ip:" + b64u(h).slice(0, 16);   // IP 원문은 저장하지 않음
 }
@@ -199,12 +209,12 @@ async function eligible(body: any, req: Request) {
     const phone = String(body.phone ?? "").replace(/\D/g, "");
     if (!/^\d{8}-\d{7}$/.test(orderId)) throw new UserError("주문번호를 확인해 주세요. 예) 20261124-0001234");
     if (phone.length < 10) throw new UserError("주문하실 때 쓴 휴대폰 번호를 확인해 주세요.");
-    const ik = await ipKey(req), ok = "order:" + orderId;
-    const [fi, fo] = await Promise.all([failCount(ik), failCount(ok)]);
-    if (fi >= FAIL_LIMIT_IP || fo >= FAIL_LIMIT_ORDER) throw new UserError("확인을 너무 여러 번 시도했어요. 1시간 뒤에 다시 시도하거나 고객센터로 문의해 주세요.");
+    const ik = await ipKey(req), ok = "order:" + orderId, iok = ik + "|" + orderId;
+    const [fi, fio, fo] = await Promise.all([failCount(ik), failCount(iok), failCount(ok)]);
+    if (fi >= FAIL_LIMIT_IP || fio >= FAIL_LIMIT_IP_ORDER || fo >= FAIL_LIMIT_ORDER) throw new UserError("확인을 너무 여러 번 시도했어요. 1시간 뒤에 다시 시도하거나 고객센터로 문의해 주세요.");
     const o = (await c24(`/admin/orders?shop_no=1&order_id=${orderId}&embed=items,buyer&limit=1`)).orders?.[0];
     const bp = String(o?.buyer?.cellphone || o?.buyer?.phone || "").replace(/\D/g, "");
-    if (!o || !bp || bp !== phone) { await addFail([ik, ok]); throw new UserError("주문번호와 휴대폰 번호가 맞는 주문을 찾지 못했어요."); }
+    if (!o || !bp || bp !== phone) { await addFail([ik, iok, ok]); throw new UserError("주문번호와 휴대폰 번호가 맞는 주문을 찾지 못했어요."); }
     const orderDate = new Date(String(o.order_date)).getTime();
     if (Date.now() - orderDate > WINDOW_DAYS * 86400e3) throw new UserError(`주문일로부터 ${WINDOW_DAYS}일이 지나 리뷰를 쓸 수 없어요.`);
     items = pickItems([o], productNo);
