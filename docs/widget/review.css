@@ -215,7 +215,7 @@
 .dr-w-or { display: flex; align-items: center; gap: 10px; margin: 8px 0 0; color: #888; font-size: 13px; }
 .dr-w-or::before, .dr-w-or::after { content: ""; flex: 1; height: 1px; background: #e6e6e6; }
 .dr-w-guest { display: flex; flex-direction: column; gap: 10px; margin: 0; }
-.dr-w-guest label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #555; }
+.dr-w-guest label { display: flex; flex-direction: column; gap: 4px; margin: 0 !important; padding: 0 !important; font-size: 13px; color: #555; }
 .dr-writer input:not([type]), .dr-writer input[inputmode], .dr-writer textarea {
   font: inherit; font-size: 16px; padding: 10px 12px !important; border: 1px solid #ccc !important; border-radius: 4px; background: #fff; height: auto !important; color: #222; }
 .dr-w-items { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
