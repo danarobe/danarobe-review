@@ -152,7 +152,7 @@ async function ordersForMember(memberId: string) {
   for (let back = 0; back < WINDOW_DAYS; back += 80) {
     const b = new Date(end.getTime() - back * 86400e3), a = new Date(b.getTime() - Math.min(80, WINDOW_DAYS - back) * 86400e3);
     for (let offset = 0; offset < 1000; offset += 100) {
-      const body = await c24(`/admin/orders?shop_no=1&member_id=${encodeURIComponent(memberId)}&start_date=${ymd(a)}&end_date=${ymd(b)}&date_type=order_date&embed=items&limit=100&offset=${offset}`);
+      const body = await c24(`/admin/orders?shop_no=1&member_id=${encodeURIComponent(memberId)}&start_date=${ymd(a)}&end_date=${ymd(b)}&date_type=order_date&embed=items,buyer&limit=100&offset=${offset}`);
       const os = body.orders ?? [];
       all.push(...os);
       if (os.length < 100) break;
@@ -199,31 +199,44 @@ async function cleanupOld() {
   await sb(`/rest/v1/dr_attempts?ts=lt.${new Date(Date.now() - 86400e3).toISOString()}`, { method: "DELETE" }).catch(() => {});
 }
 
+// 시도 한도 검사: 확인 전에 기록(reserve) → 세어서 넘으면 거절. target = 'order:…' 또는 'member:…'
+const TOO_MANY = "확인을 너무 여러 번 시도했어요. 1시간 뒤에 다시 시도하거나 고객센터로 문의해 주세요.";
+async function guard(req: Request, target: string): Promise<number[]> {
+  const ik = await ipKey(req), itk = ik ? ik + "|" + target : null;
+  const held = await reserve([target, ...(ik ? [ik, itk!] : [])]);
+  const [ft, fi, fit] = await Promise.all([failCount(target), ik ? failCount(ik) : 0, itk ? failCount(itk) : 0]);
+  if (ft > FAIL_LIMIT_ORDER || fi > FAIL_LIMIT_IP || fit > FAIL_LIMIT_IP_ORDER) { await release(held); throw new UserError(TOO_MANY); }
+  return held;
+}
+const phoneOf = (o: any) => String(o?.buyer?.cellphone || o?.buyer?.phone || "").replace(/\D/g, "");
+
 // ── 동작 ──
+// 본인 확인은 회원·비회원 모두 '주문자 휴대폰 번호'로 한다(2026-11-24).
+//  카페24 SDK 의 회원 아이디(getCustomerIDInfo)는 페이지에 적힌 값을 읽을 뿐이라 서버가 검증할 수 없음 → 아이디만으로는 아무것도 보여주지 않는다.
+//  회원: 회원 아이디 + 휴대폰 → 그 회원의 주문 중 구매자 휴대폰이 같은 주문만 인정
+//  비회원·네이버페이: 주문번호 + 휴대폰
+//  번호가 맞기 전에는 주문 유무·옵션·날짜를 알려 주지 않는다(같은 안내 문구).
 async function eligible(body: any, req: Request) {
   const productNo = Number(body.product_no);
   if (!Number.isInteger(productNo) || productNo <= 0) throw new UserError("상품 번호가 올바르지 않아요.");
+  const phone = String(body.phone ?? "").replace(/\D/g, "");
+  if (phone.length < 10 || phone.length > 11) throw new UserError("주문하실 때 쓴 휴대폰 번호를 확인해 주세요.");
   let items: any[] = [], writer: any;
   if (body.member_id) {
     const memberId = String(body.member_id).trim();
     if (!/^[A-Za-z0-9_.@-]{2,64}$/.test(memberId)) throw new UserError("회원 정보를 확인할 수 없어요.");
-    items = pickItems(await ordersForMember(memberId), productNo).filter((i) => i.member_id === memberId);
+    const held = await guard(req, "member:" + memberId);
+    const mine = (await ordersForMember(memberId)).filter((o) => String(o.member_id ?? "") === memberId && phoneOf(o) === phone);
+    items = pickItems(mine, productNo);
+    if (!items.length) { cleanupOld(); throw new UserError("휴대폰 번호가 맞는, 이 상품을 받으신 주문을 찾지 못했어요. 배송이 시작된 주문부터 리뷰를 쓸 수 있어요."); }
+    await release(held);
     writer = { type: "member", member_id: memberId };
   } else {
     const orderId = String(body.order_id ?? "").trim();
-    const phone = String(body.phone ?? "").replace(/\D/g, "");
     if (!/^\d{8}-\d{7}$/.test(orderId)) throw new UserError("주문번호를 확인해 주세요. 예) 20261124-0001234");
-    if (phone.length < 10) throw new UserError("주문하실 때 쓴 휴대폰 번호를 확인해 주세요.");
-    const ik = await ipKey(req), ok = "order:" + orderId, iok = ik ? ik + "|" + orderId : null;
-    const keys = [ok, ...(ik ? [ik, iok!] : [])];
-    const held = await reserve(keys);
-    const [fo, fi, fio] = await Promise.all([failCount(ok), ik ? failCount(ik) : 0, iok ? failCount(iok) : 0]);
-    if (fo > FAIL_LIMIT_ORDER || fi > FAIL_LIMIT_IP || fio > FAIL_LIMIT_IP_ORDER) {
-      await release(held);   // 막힌 시도는 세지 않음(이미 한도)
-      throw new UserError("확인을 너무 여러 번 시도했어요. 1시간 뒤에 다시 시도하거나 고객센터로 문의해 주세요.");
-    }
+    const held = await guard(req, "order:" + orderId);
     const o = (await c24(`/admin/orders?shop_no=1&order_id=${orderId}&embed=items,buyer&limit=1`)).orders?.[0];
-    const bp = String(o?.buyer?.cellphone || o?.buyer?.phone || "").replace(/\D/g, "");
+    const bp = phoneOf(o);
     if (!o || !bp || bp !== phone) { cleanupOld(); throw new UserError("주문번호와 휴대폰 번호가 맞는 주문을 찾지 못했어요."); }
     await release(held);   // 맞혔으면 실패로 세지 않음
     const orderDate = new Date(String(o.order_date)).getTime();

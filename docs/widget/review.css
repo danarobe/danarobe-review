@@ -211,6 +211,8 @@
 .dr-w-msg { margin: 0; padding: 12px 14px; border-radius: 6px; background: #f6f5f4; color: #333; font-size: 14px; }
 .dr-w-msg.err { background: #fdf0ee; color: #b3261e; }
 .dr-w-sub { margin: 0; font-size: 12px; color: #8a8a8a; line-height: 1.6; }
+.dr-w-lead { margin: 0; font-size: 14px; color: #333; line-height: 1.6; }
+.dr-w-sub .dr-w-link { font-size: 12px; }
 .dr-w-link { align-self: flex-start; font-size: 14px; color: #605043 !important; text-decoration: underline; }
 .dr-w-or { display: flex; align-items: center; gap: 10px; margin: 8px 0 0; color: #888; font-size: 13px; }
 .dr-w-or::before, .dr-w-or::after { content: ""; flex: 1; height: 1px; background: #e6e6e6; }

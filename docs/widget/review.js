@@ -337,8 +337,10 @@
   };
 
   // ══ 리뷰 쓰기 ══════════════════════════════════════════
-  // 1) 로그인한 회원이면 카페24 SDK로 회원 아이디 → 서버가 주문 확인
-  //    비회원·네이버페이는 주문번호 + 주문자 휴대폰
+  // 1) 본인 확인 = 주문자 휴대폰 번호 (회원·비회원 모두)
+  //    회원: 카페24 SDK의 회원 아이디 + 휴대폰 → 서버가 그 회원 주문 중 휴대폰이 맞는 주문 확인
+  //          (SDK 아이디는 페이지에 적힌 값이라 서버가 믿을 수 없어 아이디만으로는 확인하지 않음)
+  //    비회원·네이버페이: 주문번호 + 휴대폰
   // 2) 별점·내용·사진/동영상·키/몸무게 → 사진은 브라우저에서 줄여서 올림 → 저장
   var QUICK = ["사이즈가 딱 맞아요", "색감이 사진이랑 같아요", "재질이 부드러워요", "생각보다 더 예뻐요", "배송이 빨랐어요", "재구매 의사 있어요"];
   var RATING_LABEL = { 1: "별로예요", 2: "그저 그래요", 3: "괜찮아요", 4: "좋아요", 5: "최고예요" };
@@ -414,14 +416,26 @@
       frame('<div class="dr-loading">주문 내역을 확인하는 중…</div>');
       memberId().then(function (mid) {
         if (!mid) return guest(prefill);
-        api({ action: "eligible", product_no: Number(self.pno), member_id: mid }).then(function (r) {
-          if (r.ok) { st.token = r.token; st.items = r.items; st.code = r.items[0].code; return form(); }
-          frame(msg(r.message || "주문을 확인하지 못했어요.", r.reason === "done" ? "" : "err") +
-            '<p class="dr-w-sub">다른 방법으로 주문하셨다면(비회원·네이버페이) 주문번호로 확인할 수 있어요.</p>' +
-            '<button type="button" class="dr-w-link">주문번호로 확인하기</button>');
-          ov.querySelector(".dr-w-link").onclick = function () { guest(); };
-        });
+        member(mid);
       });
+    }
+    function member(mid, err, info) {
+      frame((err ? msg(err, info ? "" : "err") : "") +
+        '<form class="dr-w-guest dr-w-member">' +
+        '<p class="dr-w-lead">본인 확인을 위해 <b>주문하실 때 쓴 휴대폰 번호</b>를 넣어 주세요.</p>' +
+        '<label>휴대폰 번호<input name="phone" inputmode="tel" autocomplete="tel" placeholder="01012345678" required></label>' +
+        '<button type="submit" class="dr-btn dr-w-full">확인</button></form>' +
+        '<p class="dr-w-sub">비회원·네이버페이로 주문하셨다면 <button type="button" class="dr-w-link">주문번호로 확인하기</button></p>');
+      ov.querySelector(".dr-w-link").onclick = function () { guest(); };
+      var f = ov.querySelector(".dr-w-member");
+      f.onsubmit = function (e) {
+        e.preventDefault();
+        var btn = f.querySelector("button"); btn.disabled = true; btn.textContent = "확인 중…";
+        api({ action: "eligible", product_no: Number(self.pno), member_id: mid, phone: f.phone.value }).then(function (r) {
+          if (r.ok) { st.token = r.token; st.items = r.items; st.code = r.items[0].code; return form(); }
+          member(mid, r.message || "주문을 확인하지 못했어요.", r.reason === "done");
+        });
+      };
     }
     function guest(err) {
       var back = location.pathname + location.search.replace(/([?&])dr_write=1&?/, "$1").replace(/[?&]$/, "");
