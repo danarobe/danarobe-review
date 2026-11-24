@@ -38,6 +38,17 @@ node ~/danarobe-review/server/index.mjs
 ```
 `window.DNRB_REVIEW_CONFIG = { dataBase, writeUrl, rewardText, notice }` 로 설정 변경.
 
+## 테스트 스킨 설치 기록 (2026-11-24)
+- 테스트 스킨 skin15 (skin_no 20, "주문서 테스트 (결제슉 대체)")의 `/product/detail.html` 에서
+  알파 위젯 줄(`<div class="alpha_widget" data-code="cb1eb48a" …>` + `<!-- 🌈 알파리뷰 -->`) **바로 아래**에 묶음 하나를 넣음:
+  안내 띠("▼ 여기부터 새 리뷰 화면") + `<div id="dnrb-review" data-product-no="{$product_no}">` + review.css + review.js (GitHub Pages).
+- 넣기 전 파일 SHA-256 앞자리 `1e5b1a676843b902` (62,138자). 되돌리기 = `<!-- 다나로브 리뷰 … -->` ~ `<!-- /다나로브 리뷰 -->` 묶음 삭제.
+- 확인 주소: https://www.danarobe.com/skin-skin15/product/detail.html?product_no=1383
+- 손님 화면(대표 skin16)은 손대지 않음 — danarobe.com 상세에 dnrb-review 없음 확인.
+- 배포: `docs/` → https://danarobe.github.io/danarobe-review/ (저장소 danarobe/danarobe-review, 공개). 테스트 데이터의 사진·동영상은 아직 알파 저장소 원래 주소, 동영상 대표 사진만 `docs/posters/`.
+  다시 만들기: `python3 -I tools/build_widget_data.py origin docs/data/p https://danarobe.github.io/danarobe-review/posters/` 후 `cp widget/* docs/widget/` → 커밋·푸시.
+- GitHub Pages 는 10분 캐시라 고친 직후엔 브라우저에 옛 CSS/JS 가 남을 수 있음. 운영 적용 땐 주소에 버전(?v=)을 붙일 것.
+
 ## 남은 일
 1. 테스트 스킨에서 실제 상품 페이지에 붙여 알파와 비교
 2. 데이터·사진 저장 위치 결정 (전송료 0원인 Cloudflare R2 후보 / 카페24)
