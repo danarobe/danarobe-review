@@ -49,9 +49,23 @@ node ~/danarobe-review/server/index.mjs
   다시 만들기: `python3 -I tools/build_widget_data.py origin docs/data/p https://danarobe.github.io/danarobe-review/posters/` 후 `cp widget/* docs/widget/` → 커밋·푸시.
 - GitHub Pages 는 10분 캐시라 고친 직후엔 브라우저에 옛 CSS/JS 가 남을 수 있음. 운영 적용 땐 주소에 버전(?v=)을 붙일 것.
 
+## 리뷰 쓰기 (2026-11-24)
+- 화면: 위젯의 [리뷰 작성] 또는 상품 주소에 `?dr_write=1` (알림톡·주문내역 링크용) → 쓰기 창.
+- 구매 확인
+  - 회원: 쇼핑몰 페이지의 카페24 SDK(`CAFE24API.init({client_id: 워크스페이스 앱 UzeJXo…})`.getCustomerIDInfo)로 회원 아이디 → 서버가 카페24 주문(최근 180일, 80일씩 나눠 조회)에서 이 상품의 배송중·배송완료·구매확정(N30/N40/N50) 품목 확인.
+  - 비회원·네이버페이: 주문번호 + 주문자 휴대폰(카페24 주문의 buyer.cellphone 과 일치해야 함).
+  - 확인되면 서버가 2시간짜리 서명 허가(token)를 줌. 주문 품목 하나에 리뷰 하나(order_item_code unique).
+  - ⚠ 회원 아이디는 브라우저가 알려 주는 값이라 남의 아이디를 넣으면 그 사람 주문으로 쓸 수 있음(그 사람 주문 품목 옵션만 보임, 돈 이득 없음). 운영 전 보완 후보: 회원도 주문번호 한 번 확인.
+- 내용: 별점(필수), 10~2,000자, 빠른 문구 칩, 사진 5장(브라우저에서 긴 쪽 1600px JPEG로 줄임)·동영상 1개(100MB), 키·몸무게(선택).
+- 저장: Supabase(eeffmbusaqaadeojjlnc) 표 `dr_reviews`(RLS, 정책 없음) + 보관함 `review-media`(공개 읽기, 함수가 준 1회용 주소로만 올림). SQL `supabase/reviews.sql`.
+- 함수 `review-api` (`supabase/functions/review-api/index.ts`, 배포: `supabase functions deploy review-api --project-ref eeffmbusaqaadeojjlnc --no-verify-jwt`). 카페24는 **주문 읽기만**.
+- 위젯은 정적 예전 리뷰 + `review-api?action=list` 새 리뷰를 합쳐 보여줌(개수·평균·분포 다시 계산).
+- 적립금: 아직 자동 지급 안 함 — `reward_status='pending'` 으로 쌓임. 지급 방식은 다음 단계에서 결정.
+- 점검(11-24): 실제 회원·비회원 주문으로 확인·사진 올리기·등록·중복 막기·짧은 글 막기·목록 반영까지 확인 후 시험 글 2건과 사진 삭제(표 0건·보관함 0개).
+
 ## 남은 일
 1. 테스트 스킨에서 실제 상품 페이지에 붙여 알파와 비교
 2. 데이터·사진 저장 위치 결정 (전송료 0원인 Cloudflare R2 후보 / 카페24)
-3. 리뷰 쓰기 (구매자 확인, 사진·동영상 올리기, 적립금)
+3. 적립금 지급 방식 결정·연결, 네이버페이 구매평 가져오기, 리뷰 요청 알림톡 링크(?dr_write=1)
 4. 관리자 화면 (목록·검색·숨김·답글·베스트)
 5. 전환 직전 백업 한 번 더 → 알파 위젯 제거 → 알파 해지
