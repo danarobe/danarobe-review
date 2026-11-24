@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>다나로브 리뷰 미리보기</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="/widget/review.css">
+<style>
+  body { margin: 0; font-family: "Work Sans", "Noto Sans KR", sans-serif; background: #fff; }
+  .bar { position: sticky; top: 0; z-index: 10; display: flex; gap: 8px; align-items: center; padding: 10px 16px; background: #f4f1ee; border-bottom: 1px solid #ddd; font-size: 14px; }
+  .bar input { width: 90px; padding: 6px 8px; }
+  .bar a { color: #605043; }
+  .tabs { max-width: 1005px; margin: 30px auto; padding: 0 16px; color: #555; }
+</style>
+</head>
+<body>
+<form class="bar" onsubmit="location.search='?product_no='+this.p.value;return false">
+  <b>리뷰 미리보기</b> 상품 번호 <input name="p" inputmode="numeric">
+  <button>보기</button>
+  <span>예: <a href="?product_no=1383">1383</a> · <a href="?product_no=703">703</a> · <a href="?product_no=2487">2487</a> · <a href="?product_no=29">29</a> · <a href="?product_no=3">리뷰 없음</a></span>
+</form>
+<div class="tabs">상세정보 · 구매안내 · 사용후기 <b class="dr-review-count">…</b> · Q&amp;A</div>
+<div id="dnrb-review"></div>
+<script>
+  var p = new URLSearchParams(location.search).get("product_no") || "1383";
+  document.getElementById("dnrb-review").setAttribute("data-product-no", p);
+  document.querySelector(".bar input").value = p;
+</script>
+<script src="/widget/review.js"></script>
+</body>
+</html>
