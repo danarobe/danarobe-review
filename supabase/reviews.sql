@@ -33,3 +33,12 @@ values ('review-media', 'review-media', true, 104857600,
         array['image/jpeg','image/png','image/webp','image/heic','video/mp4','video/quicktime','video/webm'])
 on conflict (id) do update set public = excluded.public, file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
+
+-- 비회원 주문 확인 실패 기록 (반복 대입 막기) — 2026-11-24
+create table if not exists public.dr_attempts (
+  id bigint generated always as identity primary key,
+  ts timestamptz not null default now(),
+  k text not null          -- 'ip:<해시>' 또는 'order:<주문번호>'
+);
+create index if not exists dr_attempts_k_ts on public.dr_attempts (k, ts);
+alter table public.dr_attempts enable row level security;

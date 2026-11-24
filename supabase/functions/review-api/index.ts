@@ -166,8 +166,26 @@ async function alreadyReviewed(codes: string[]) {
   return new Set((rows ?? []).map((r: any) => String(r.order_item_code)));
 }
 
+// ── 반복 대입 막기: 비회원 확인 실패를 IP별·주문번호별로 세어 1시간 안에 너무 많으면 잠시 막는다 ──
+const FAIL_LIMIT_IP = 10, FAIL_LIMIT_ORDER = 5;
+async function ipKey(req: Request) {
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+  const h = new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode("dr-ip:" + ip + SB_KEY.slice(-8))));
+  return "ip:" + b64u(h).slice(0, 16);   // IP 원문은 저장하지 않음
+}
+async function failCount(k: string) {
+  const since = new Date(Date.now() - 3600e3).toISOString();
+  const rows = await sb(`/rest/v1/dr_attempts?select=id&k=eq.${encodeURIComponent(k)}&ts=gte.${since}&limit=50`);
+  return (rows ?? []).length;
+}
+async function addFail(keys: string[]) {
+  await sb(`/rest/v1/dr_attempts`, { method: "POST", body: JSON.stringify(keys.map((k) => ({ k }))) }).catch(() => {});
+  // 하루 지난 기록은 지움(표가 계속 커지지 않게)
+  await sb(`/rest/v1/dr_attempts?ts=lt.${new Date(Date.now() - 86400e3).toISOString()}`, { method: "DELETE" }).catch(() => {});
+}
+
 // ── 동작 ──
-async function eligible(body: any) {
+async function eligible(body: any, req: Request) {
   const productNo = Number(body.product_no);
   if (!Number.isInteger(productNo) || productNo <= 0) throw new UserError("상품 번호가 올바르지 않아요.");
   let items: any[] = [], writer: any;
@@ -181,9 +199,12 @@ async function eligible(body: any) {
     const phone = String(body.phone ?? "").replace(/\D/g, "");
     if (!/^\d{8}-\d{7}$/.test(orderId)) throw new UserError("주문번호를 확인해 주세요. 예) 20261124-0001234");
     if (phone.length < 10) throw new UserError("주문하실 때 쓴 휴대폰 번호를 확인해 주세요.");
+    const ik = await ipKey(req), ok = "order:" + orderId;
+    const [fi, fo] = await Promise.all([failCount(ik), failCount(ok)]);
+    if (fi >= FAIL_LIMIT_IP || fo >= FAIL_LIMIT_ORDER) throw new UserError("확인을 너무 여러 번 시도했어요. 1시간 뒤에 다시 시도하거나 고객센터로 문의해 주세요.");
     const o = (await c24(`/admin/orders?shop_no=1&order_id=${orderId}&embed=items,buyer&limit=1`)).orders?.[0];
     const bp = String(o?.buyer?.cellphone || o?.buyer?.phone || "").replace(/\D/g, "");
-    if (!o || !bp || bp !== phone) throw new UserError("주문번호와 휴대폰 번호가 맞는 주문을 찾지 못했어요.");
+    if (!o || !bp || bp !== phone) { await addFail([ik, ok]); throw new UserError("주문번호와 휴대폰 번호가 맞는 주문을 찾지 못했어요."); }
     const orderDate = new Date(String(o.order_date)).getTime();
     if (Date.now() - orderDate > WINDOW_DAYS * 86400e3) throw new UserError(`주문일로부터 ${WINDOW_DAYS}일이 지나 리뷰를 쓸 수 없어요.`);
     items = pickItems([o], productNo);
@@ -247,6 +268,12 @@ async function submit(body: any, req: Request) {
     for (const p of paths) {
       const head = await fetch(`${SB_URL}/storage/v1/object/public/${BUCKET}/${p}`, { method: "HEAD" });
       if (!head.ok) throw new UserError("사진·동영상이 다 올라가지 않았어요. 잠시 후 다시 시도해 주세요.");
+      // 신고한 크기가 아니라 실제로 올라간 크기로 다시 확인 — 넘으면 지우고 거절
+      const isV = /\.(mp4|mov|webm)$/i.test(p), real = Number(head.headers.get("content-length") ?? 0);
+      if (!real || real > (isV ? MAX_VIDEO_BYTES : MAX_PHOTO_BYTES)) {
+        await sb(`/storage/v1/object/${BUCKET}`, { method: "DELETE", body: JSON.stringify({ prefixes: paths }) }).catch(() => {});
+        throw new UserError(isV ? "동영상은 100MB까지 올릴 수 있어요." : "사진 한 장은 15MB까지 올릴 수 있어요.");
+      }
     }
     media = paths.map((p: string) => ({ t: /\.(mp4|mov|webm)$/i.test(p) ? "v" : "p", path: p }));
   }
@@ -294,7 +321,7 @@ Deno.serve(async (req) => {
     }
     if (req.method !== "POST") return json(req, { error: "method" }, 405);
     const body = await req.json().catch(() => ({}));
-    if (body.action === "eligible") return json(req, await eligible(body));
+    if (body.action === "eligible") return json(req, await eligible(body, req));
     if (body.action === "upload") return json(req, await upload(body));
     if (body.action === "submit") return json(req, await submit(body, req));
     return json(req, { error: "unknown action" }, 400);

@@ -55,7 +55,9 @@ node ~/danarobe-review/server/index.mjs
   - 회원: 쇼핑몰 페이지의 카페24 SDK(`CAFE24API.init({client_id: 워크스페이스 앱 UzeJXo…})`.getCustomerIDInfo)로 회원 아이디 → 서버가 카페24 주문(최근 180일, 80일씩 나눠 조회)에서 이 상품의 배송중·배송완료·구매확정(N30/N40/N50) 품목 확인.
   - 비회원·네이버페이: 주문번호 + 주문자 휴대폰(카페24 주문의 buyer.cellphone 과 일치해야 함).
   - 확인되면 서버가 2시간짜리 서명 허가(token)를 줌. 주문 품목 하나에 리뷰 하나(order_item_code unique).
-  - ⚠ 회원 아이디는 브라우저가 알려 주는 값이라 남의 아이디를 넣으면 그 사람 주문으로 쓸 수 있음(그 사람 주문 품목 옵션만 보임, 돈 이득 없음). 운영 전 보완 후보: 회원도 주문번호 한 번 확인.
+  - 비회원 확인 실패는 `dr_attempts` 에 IP(해시)·주문번호별로 기록 → 1시간에 IP 10번·주문번호 5번 넘으면 잠시 막음(하루 지난 기록 자동 삭제).
+  - 올린 파일은 등록 때 실제 크기를 다시 확인(사진 15MB·동영상 100MB 넘으면 지우고 거절).
+  - ⚠ **운영 적용 전 꼭 고칠 것** — 회원 아이디는 브라우저가 알려 주는 값이라 남의 아이디를 넣으면 그 사람 주문으로 쓸 수 있음(그 사람 주문 품목 옵션만 보임, 돈 이득 없음). 운영 전 보완 후보: 회원도 주문번호 한 번 확인.
 - 내용: 별점(필수), 10~2,000자, 빠른 문구 칩, 사진 5장(브라우저에서 긴 쪽 1600px JPEG로 줄임)·동영상 1개(100MB), 키·몸무게(선택).
 - 저장: Supabase(eeffmbusaqaadeojjlnc) 표 `dr_reviews`(RLS, 정책 없음) + 보관함 `review-media`(공개 읽기, 함수가 준 1회용 주소로만 올림). SQL `supabase/reviews.sql`.
 - 함수 `review-api` (`supabase/functions/review-api/index.ts`, 배포: `supabase functions deploy review-api --project-ref eeffmbusaqaadeojjlnc --no-verify-jwt`). 카페24는 **주문 읽기만**.
